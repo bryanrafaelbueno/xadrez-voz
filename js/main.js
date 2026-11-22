@@ -1995,7 +1995,8 @@ function renderServer() {
   if (available) {
     const variant = state.server.models.find((model) => model.id === state.model);
     dom.serverHint.classList.add('online');
-    dom.serverHint.textContent = `${t(state.lang, 'serverOnline')} · ${modelShortName(state.model)}${state.server.engine === 'cli' ? ' (CLI)' : ''}${variant && variant.sizeMb ? ` · ${variant.sizeMb} MB` : ''}`;
+    const provider = state.server.engine === 'vercel' ? t(state.lang, 'vercelServer') : t(state.lang, 'serverOnline');
+    dom.serverHint.textContent = `${provider} · ${modelShortName(state.model)}${state.server.engine === 'cli' ? ' (CLI)' : ''}${variant && variant.sizeMb ? ` · ${variant.sizeMb} MB` : ''}`;
   } else if (loading) {
     dom.serverHint.textContent = t(state.lang, 'serverChecking');
   } else {

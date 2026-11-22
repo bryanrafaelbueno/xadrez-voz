@@ -5,8 +5,13 @@ whisper-server.log
 server.log
 tests/output/
 tests/tmp/
+public/
+api/models/
+.vercel/
 bin/
 models/
 vendor/
 Thumbs.db
 desktop.ini
+
+.vercel
