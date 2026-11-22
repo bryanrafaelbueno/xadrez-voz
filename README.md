@@ -12,6 +12,8 @@ dois jogadores.
 > do navegador. Whisper local e narração neural exigem rodar o `start.bat` no
 > computador.
 
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/bryanrafaelbueno/xadrez-voz)
+
 ## Versão online (GitHub Pages)
 
 **https://bryanrafaelbueno.github.io/xadrez-voz/**
@@ -29,6 +31,36 @@ A versão estática funciona sem instalar nada:
 O repositório não versiona as pastas `bin/`, `models/` e `vendor/` por causa do
 tamanho dos binários (Whisper, eSpeak e runtime da voz). A demo online não
 precisa delas; a cópia local do projeto já as contém.
+
+## Deploy na Vercel (Whisper no servidor)
+
+A versão Vercel roda **Whisper base no servidor** (função Python serverless)
+e mantém o tabuleiro, a IA e o restante do app no navegador. A narração pt-BR
+usa a voz do navegador nesta versão.
+
+- **Botão:** use o botão *Deploy with Vercel* no topo deste README.
+- **Modelo:** `ggml-base-q5_1` (57 MB) é baixado durante o build e embutido na
+  função; não fica no Git.
+- **API:** `/api/health`, `/api/transcribe` e `/api/tts` (esta retorna 503,
+  porque a narração é do navegador).
+- **Cold start:** a primeira fala após uma nova instância carrega o modelo e
+  pode demorar alguns segundos; a Vercel permite até 300s por requisição.
+- **Pywhispercpp / Python 3.12:** as dependências e a versão do runtime estão
+  em `requirements.txt` e `vercel.json`.
+- **CLI opcional:**
+
+```powershell
+npx vercel login
+npx vercel --prod
+```
+
+> Observação: no Windows, o build local do CLI pode falhar ao criar symlinks
+> do builder. Nesse caso, use o botão/importação do GitHub, que faz o build
+> diretamente na Vercel.
+
+A versão local (`start.bat`) continua sendo a única com **Whisper local
+residente + narração neural TinyVoca**. O GitHub Pages continua sendo a demo
+estática sem backend.
 
 ## Destaques
 
@@ -202,6 +234,9 @@ js/sound.js           Efeitos sonoros sintetizados
 js/main.js            Controle do app
 js/i18n.js            Textos PT/EN e descrição de lances
 server.py             HTTP local, Whisper e voz pt-BR
+api/                  Funções serverless da Vercel (Whisper base)
+vercel.json           Build/output das funções e do site na Vercel
+requirements.txt      Dependências Python da função Vercel
 bin/whisper/          whisper.cpp (whisper-server, whisper-cli e DLLs)
 bin/espeak-ng/        eSpeak NG (fonemas da narração)
 models/               Whisper GGML + voz tiny-voca
@@ -268,18 +303,21 @@ Python to PATH”, ou use `py -3 server.py`.
 ## Privacidade
 
 - Com o Whisper local ativo, o áudio é processado na sua máquina e não sai dela.
-- A narração pt-BR também é sintetizada localmente; apenas o texto do lance é
-  enviado ao servidor local em `127.0.0.1`, nunca à internet.
+- No deploy da Vercel, o áudio é enviado por HTTPS para a função serverless da
+  Vercel e processado lá; o WAV temporário é apagado após a transcrição.
+- A narração pt-BR também é sintetizada localmente na versão desktop; apenas o
+  texto do lance é enviado ao servidor local em `127.0.0.1`, nunca à internet.
 - O áudio temporário é apagado do disco logo após a transcrição.
-- O servidor escuta apenas em `127.0.0.1`.
+- O servidor local escuta apenas em `127.0.0.1`.
 - O fallback do navegador pode usar serviços de nuvem do navegador; ele só é
-  usado quando o Whisper local falha e é identificado na interface.
+  usado quando o Whisper do servidor falha e é identificado na interface.
 
 ## Créditos e licenças
 
 - Peças de xadrez: **Colin M. L. Burnett**, licença CC BY-SA 3.0
   (via repositório do Lichess).
 - [whisper.cpp](https://github.com/ggml-org/whisper.cpp): MIT.
+- [pywhispercpp](https://github.com/absadiki/pywhispercpp): MIT (bindings usados na função Vercel).
 - Modelos [OpenAI Whisper](https://github.com/openai/whisper): MIT.
 - Voz [tiny-voca pt-BR](https://huggingface.co/Haple/tiny-voca-ptbr-kokoro):
   Apache-2.0.
