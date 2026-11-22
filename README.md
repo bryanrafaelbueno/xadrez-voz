@@ -6,10 +6,13 @@ dois jogadores.
 
 ![Xadrez Voz](docs/screenshot.png)
 
-> **Demo online:** https://bryanrafaelbueno.github.io/xadrez-voz/
+> **Demo com Whisper no servidor:** https://xadrez-voz-three.vercel.app/
+>
+> **Demo estática:** https://bryanrafaelbueno.github.io/xadrez-voz/
 >
 > No GitHub Pages, xadrez e IA rodam no navegador; a voz usa o reconhecimento
-> do navegador. Whisper local e narração neural exigem rodar o `start.bat` no
+> do navegador. Na Vercel, a voz é transcrita pelo Whisper base na função
+> serverless. Whisper residente e narração neural exigem rodar o `start.bat` no
 > computador.
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/bryanrafaelbueno/xadrez-voz)
@@ -34,10 +37,13 @@ precisa delas; a cópia local do projeto já as contém.
 
 ## Deploy na Vercel (Whisper no servidor)
 
+**https://xadrez-voz-three.vercel.app/**
+
 A versão Vercel roda **Whisper base no servidor** (função Python serverless)
 e mantém o tabuleiro, a IA e o restante do app no navegador. A narração pt-BR
 usa a voz do navegador nesta versão.
 
+- **Projeto:** `xadrez-voz`, conectado ao repositório na branch `main`.
 - **Botão:** use o botão *Deploy with Vercel* no topo deste README.
 - **Modelo:** `ggml-base-q5_1` (57 MB) é baixado durante o build e embutido na
   função; não fica no Git.
