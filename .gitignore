@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+whisper-server.log
+server.log
+tests/output/
+tests/tmp/
+bin/
+models/
+vendor/
+Thumbs.db
+desktop.ini
