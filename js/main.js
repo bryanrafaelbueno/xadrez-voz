@@ -1703,6 +1703,25 @@ function toggleVoiceSession() {
   else startVoiceSession();
 }
 
+async function listenWithBrowserOnce() {
+  const started = performance.now();
+  let text;
+  try {
+    text = await voice.recognizeWithBrowser(state.lang);
+  } catch (error) {
+    voice.stop({ release: false });
+    throw error;
+  }
+  voice.stop({ release: false });
+  const clean = String(text || '').trim();
+  if (!clean) {
+    const error = new Error('Empty transcription');
+    error.code = 'empty';
+    throw error;
+  }
+  return { text: clean, source: 'browser', ms: Math.round(performance.now() - started) };
+}
+
 async function runVoiceSession() {
   try {
     while (state.sessionActive) {
@@ -1712,7 +1731,9 @@ async function runVoiceSession() {
       }
       let result = null;
       try {
-        result = await voice.listenOnce({ continuous: state.continuous });
+        result = STATIC_MODE
+          ? await listenWithBrowserOnce()
+          : await voice.listenOnce({ continuous: state.continuous });
       } catch (error) {
         if (!state.sessionActive) break;
         handleVoiceError(error);
@@ -1925,6 +1946,7 @@ function populateModels(models, defaultModel) {
 
 function renderServer() {
   if (STATIC_MODE) {
+    if (narrator) narrator.setServerTts(false);
     dom.engineDot.className = 'engine-dot static';
     dom.engineStatusText.textContent = t(state.lang, 'staticModeShort');
     dom.engineStatus.title = t(state.lang, 'staticServerHint');

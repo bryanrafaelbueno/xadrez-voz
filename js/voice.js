@@ -129,6 +129,7 @@ export class VoiceInput {
     this.state = 'idle';
     this.lastLevelAt = 0;
     this.releaseOnIdle = false;
+    this.browserRecognition = null;
   }
 
   setServerAvailable(value) {
@@ -416,8 +417,19 @@ export class VoiceInput {
   }
 
   /** Abort current listen and release when requested. */
+  abortBrowserRecognition() {
+    if (!this.browserRecognition) return;
+    try {
+      this.browserRecognition.abort();
+    } catch {
+      /* ignore */
+    }
+    this.browserRecognition = null;
+  }
+
   stop({ release = false } = {}) {
     this.generation++;
+    this.abortBrowserRecognition();
     this.resetCapture();
     if (this.pending && !this.pending.settled) {
       this.settle(null, null);
@@ -451,6 +463,7 @@ export class VoiceInput {
 
   release() {
     this.generation++;
+    this.abortBrowserRecognition();
     this.resetCapture();
     this.settle(null, null);
     this.releaseResources();
@@ -492,25 +505,33 @@ export class VoiceInput {
   recognizeWithBrowser(lang) {
     const SR = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
     if (!SR) return Promise.reject(new VoiceError('no_browser_stt', 'Browser speech recognition unavailable'));
+    this.abortBrowserRecognition();
     this.releaseResources();
     return new Promise((resolve, reject) => {
       let settled = false;
       const rec = new SR();
+      this.browserRecognition = rec;
       rec.lang = lang === 'en' ? 'en-US' : 'pt-BR';
       rec.interimResults = false;
       rec.continuous = false;
       rec.maxAlternatives = 3;
+      const clearRecognition = () => {
+        if (this.browserRecognition === rec) this.browserRecognition = null;
+      };
       rec.onresult = (event) => {
         settled = true;
+        clearRecognition();
         const results = event.results && event.results[0];
         resolve(results && results[0] ? results[0].transcript : '');
       };
       rec.onerror = (event) => {
         settled = true;
+        clearRecognition();
         const code = event && event.error;
         reject(new VoiceError(code === 'not-allowed' ? 'not_allowed' : 'browser_stt_failed', code || 'Browser speech error'));
       };
       rec.onend = () => {
+        clearRecognition();
         if (!settled) {
           settled = true;
           reject(new VoiceError('no_speech', 'No speech detected'));
@@ -520,6 +541,7 @@ export class VoiceInput {
         rec.start();
         this.setState('recording');
       } catch (error) {
+        clearRecognition();
         settled = true;
         reject(new VoiceError('browser_stt_failed', 'Could not start browser speech recognition'));
       }
