@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vozes pt-BR — Xadrez Voz</title>
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+      color: #eef4f9;
+      background:
+        radial-gradient(900px 500px at 20% 0%, rgba(35, 120, 90, 0.25), transparent 60%),
+        linear-gradient(160deg, #070b10, #0d1720);
+    }
+    main {
+      width: min(660px, calc(100% - 36px));
+      padding: 30px;
+      border-radius: 22px;
+      background: rgba(17, 25, 34, 0.86);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+    }
+    h1 { margin: 0 0 4px; font-size: 24px; letter-spacing: -0.02em; }
+    .sub { margin: 0 0 24px; color: #93a3b4; font-size: 13px; }
+    .sample {
+      padding: 15px 16px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.075);
+      background: rgba(255, 255, 255, 0.03);
+      margin-bottom: 12px;
+    }
+    .name { font-size: 13px; font-weight: 700; margin-bottom: 3px; }
+    .tag { color: #7fe1bc; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+    audio { width: 100%; margin-top: 11px; }
+    .note { color: #93a3b4; font-size: 12px; line-height: 1.5; margin-top: 18px; }
+    code { color: #bde9d7; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Vozes da narração</h1>
+    <p class="sub">Xadrez Voz · modelo neural pt-BR local (TinyVoca, 24 kHz)</p>
+
+    <div class="sample">
+      <div class="tag">Feminina</div>
+      <div class="name">“Olá! Eu narro os lances em português do Brasil. Cavalo de g1 para f3, xeque.”</div>
+      <audio controls preload="metadata" src="voz-feminina.wav"></audio>
+    </div>
+
+    <div class="sample">
+      <div class="tag">Masculina</div>
+      <div class="name">“Olá! Eu narro os lances em português do Brasil. Cavalo de g1 para f3, xeque.”</div>
+      <audio controls preload="metadata" src="voz-masculina.wav"></audio>
+    </div>
+
+    <p class="note">
+      No app, escolha em <code>Ajustes → Narração em voz alta → Voz pt-BR</code>
+      e use <code>Testar voz</code>. O reconhecimento de voz continua sendo o
+      Whisper local e não foi alterado.
+    </p>
+  </main>
+</body>
+</html>
