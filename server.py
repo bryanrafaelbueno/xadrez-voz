@@ -35,7 +35,20 @@ from collections import OrderedDict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+# O console do Windows pode estar em cp1252; os banners usam caracteres Unicode.
+if os.name == "nt":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+# Quando empacotado com PyInstaller, os dados (models, bin, vendor, assets)
+# ficam ao lado do .exe, não dentro da pasta temporária _MEIPASS.
+if getattr(sys, "frozen", False):
+    ROOT = Path(sys.executable).resolve().parent
+else:
+    ROOT = Path(__file__).resolve().parent
 WHISPER_DIR = ROOT / "bin" / "whisper"
 MODELS_DIR = ROOT / "models"
 LOG_FILE = ROOT / "whisper-server.log"

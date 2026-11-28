@@ -17,7 +17,8 @@ if errorlevel 1 (
   set "PY=py -3"
 )
 
-echo Iniciando Xadrez Voz...
+echo Iniciando Xadrez Voz + Mesa XY...
+echo Use Chrome ou Edge para o Web Serial do Arduino.
 %PY% server.py %*
 
 if errorlevel 1 (

@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Path tracing — Xadrez Voz + Mesa XY</title>
+  <style>
+    :root {
+      --bg: #070b10;
+      --panel: #101820;
+      --line: rgba(255, 255, 255, 0.09);
+      --text: #eef4f9;
+      --muted: #93a3b4;
+      --accent: #4ce3aa;
+      --amber: #f2bb61;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 36px clamp(18px, 4vw, 56px) 56px;
+      background:
+        radial-gradient(900px 520px at 12% -8%, rgba(35, 93, 73, 0.3), transparent 65%),
+        var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    }
+
+    header { max-width: 1380px; margin: 0 auto 26px; }
+
+    .kicker {
+      color: #7fe7bf;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.22em;
+    }
+
+    .kicker span { color: #6f8092; font-weight: 600; }
+
+    h1 {
+      margin: 8px 0 6px;
+      font-size: clamp(28px, 4vw, 48px);
+      font-weight: 300;
+      letter-spacing: -0.035em;
+    }
+
+    h1 b { font-weight: 750; color: var(--accent); }
+
+    header p {
+      margin: 0;
+      max-width: 760px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+      gap: 20px;
+      max-width: 1380px;
+      margin: 0 auto;
+    }
+
+    .card {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: linear-gradient(160deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.012) 50%), var(--panel);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+    }
+
+    video {
+      display: block;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: #000;
+      cursor: pointer;
+    }
+
+    .body { padding: 14px 16px 16px; }
+
+    .body h2 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .body p {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 11.5px;
+      line-height: 1.55;
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .tag {
+      padding: 4px 8px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: #b6c4d1;
+      font-size: 9.5px;
+      font-weight: 600;
+    }
+
+    .tag.target { color: #bdf7df; border-color: rgba(76, 227, 170, 0.3); background: rgba(76, 227, 170, 0.07); }
+    .tag.clear { color: #f3d8a7; border-color: rgba(242, 187, 97, 0.3); background: rgba(242, 187, 97, 0.07); }
+
+    footer {
+      max-width: 1380px;
+      margin: 24px auto 0;
+      color: #6f8092;
+      font-size: 10.5px;
+      line-height: 1.7;
+    }
+
+    footer strong { color: #93a3b4; font-weight: 600; }
+
+    @media (max-width: 460px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="kicker">XADREZ VOZ <span>+ MESA XY</span></div>
+    <h1>Path tracing <b>· demonstrações</b></h1>
+    <p>
+      Três animações gravadas na simulação da Mesa XY: cavalo com desobstrução,
+      roque e movimento normal de peão. O traçado, o plano físico e o retorno à
+      origem são os mesmos usados com o Arduino.
+    </p>
+  </header>
+
+  <div class="grid">
+    <article class="card">
+      <video controls preload="metadata" poster="posters/01-cavalo-g1-f3.jpg">
+        <source src="videos/01-cavalo-g1-f3.mp4" type="video/mp4">
+      </video>
+      <div class="body">
+        <h2>Cavalo g1 → f3</h2>
+        <p>Desobstrução automática: o peão de g2 sai para g3, o cavalo vai para f3 e o peão volta para g2.</p>
+        <div class="meta">
+          <span class="tag clear">g2 → g3</span>
+          <span class="tag target">g1 → f3</span>
+          <span class="tag">g3 → g2</span>
+          <span class="tag">21,5 s</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="card">
+      <video controls preload="metadata" poster="posters/02-roque.jpg">
+        <source src="videos/02-roque.mp4" type="video/mp4">
+      </video>
+      <div class="body">
+        <h2>Roque pequeno O-O</h2>
+        <p>Plano de roque com rei e torre na mesma execução, cada sub-movimento retornando a 0,0.</p>
+        <div class="meta">
+          <span class="tag target">e1 → g1</span>
+          <span class="tag target">h1 → f1</span>
+          <span class="tag">16,7 s</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="card">
+      <video controls preload="metadata" poster="posters/03-peao-e2-e4.jpg">
+        <source src="videos/03-peao-e2-e4.mp4" type="video/mp4">
+      </video>
+      <div class="body">
+        <h2>Peão e2 → e4</h2>
+        <p>Trajeto direto com o ímã ligado apenas sobre a peça e retorno dos motores para 0,0.</p>
+        <div class="meta">
+          <span class="tag target">e2 → e4</span>
+          <span class="tag">12,9 s</span>
+        </div>
+      </div>
+    </article>
+  </div>
+
+  <footer>
+    <strong>Simulação.</strong> Os vídeos têm 1920×1080, 30 fps, H.264, sem áudio.
+    Arquivos em <code>videos/</code>; instruções de regravação em <code>README.md</code>.
+  </footer>
+</body>
+</html>

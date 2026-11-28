@@ -7,7 +7,8 @@
   <meta name="description" content="Xadrez por voz em português e inglês, com Whisper local e IA.">
   <title>Xadrez Voz</title>
   <link rel="icon" href="assets/pieces/wN.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/styles.css?v=20261127-descarte2">
+  <link rel="stylesheet" href="css/xy.css?v=20261127-descarte2">
 </head>
 <body>
   <div class="backdrop-glow" aria-hidden="true"></div>
@@ -32,6 +33,11 @@
           <button type="button" class="mini-btn active" data-lang="pt">PT</button>
           <button type="button" class="mini-btn" data-lang="en">EN</button>
         </div>
+
+        <button class="access-pill" id="accessBtn" type="button" aria-pressed="false" data-title-key="keyboardHint">
+          <span class="access-glyph" aria-hidden="true">A+</span>
+          <span class="access-label" data-i18n="accessibleMode">Acessível</span>
+        </button>
 
         <button class="icon-btn" id="soundBtn" type="button" data-title-key="voiceOutput" aria-label="Sound">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path class="wave" d="M15.5 8.5a5 5 0 0 1 0 7"/><path class="wave" d="M18 6a8.5 8.5 0 0 1 0 12"/></svg>
@@ -65,6 +71,7 @@
             <div class="board" id="board" role="grid" aria-label="Tabuleiro de xadrez">
               <div class="squares" id="squares"></div>
               <div class="pieces" id="pieces" aria-hidden="true"></div>
+              <svg class="xy-overlay" id="xyBoardOverlay" viewBox="0 0 8 8" preserveAspectRatio="none" aria-hidden="true"></svg>
               <div class="board-busy" id="boardBusy" aria-hidden="true">
                 <span class="spinner"></span>
                 <span data-i18n="thinking">Pensando…</span>
@@ -114,6 +121,8 @@
             <span data-i18n="resign">Desistir</span>
           </button>
         </div>
+
+        <p class="access-hint" id="accessHint" data-i18n="keyboardHint"></p>
       </section>
 
       <aside class="sidebar">
@@ -137,6 +146,15 @@
             <p class="voice-state" id="voiceState">Clique para falar</p>
             <p class="voice-sub" id="voiceSub">Português · Whisper local</p>
           </div>
+
+          <label class="toggle-row hands-free-row" for="handsFreeToggle">
+            <span>
+              <b data-i18n="handsFree">Mãos livres</b>
+              <small data-i18n="handsFreeHint">Fale sem apertar. Só a primeira ativação do microfone pede permissão.</small>
+            </span>
+            <input type="checkbox" id="handsFreeToggle">
+            <span class="switch" aria-hidden="true"></span>
+          </label>
 
           <div class="transcript-card" id="transcriptCard">
             <div class="transcript-head">
@@ -164,6 +182,7 @@
         <section class="panel lower-panel">
           <div class="tabs" role="tablist">
             <button class="tab active" type="button" data-tab="moves" data-i18n="movesTab">Lances</button>
+            <button class="tab" type="button" data-tab="xy">Mesa XY</button>
             <button class="tab" type="button" data-tab="settings" data-i18n="settingsTab">Ajustes</button>
             <button class="tab" type="button" data-tab="commands" data-i18n="commandsTab">Comandos</button>
           </div>
@@ -264,6 +283,8 @@
             <p class="muted commands-intro" data-i18n="commandsIntro"></p>
             <div id="commandGroups"></div>
           </div>
+
+          <div class="tab-panel hidden" id="tab-xy"></div>
         </section>
       </aside>
     </main>
@@ -321,6 +342,6 @@
     <div class="noscript">Este app precisa de JavaScript para funcionar.</div>
   </noscript>
 
-  <script type="module" src="js/main.js?v=20261122-1"></script>
+  <script type="module" src="js/main.js?v=20261127-descarte2"></script>
 </body>
 </html>

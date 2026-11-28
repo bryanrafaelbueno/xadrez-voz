@@ -1,4 +1,74 @@
-# ♞ Xadrez Voz
+# ♞ Xadrez Voz + Mesa XY (versão local)
+
+> **Esta é a versão local com Arduino, path tracing e recursos de
+> acessibilidade.** O jogo, as regras, a voz com Whisper, a narração, a IA e a
+> interface são os mesmos do Xadrez Voz. As adições são a aba **Mesa XY**
+> (conexão Web Serial, posição da máquina, plano físico e traçado), o
+> **descarte automático de capturas**, o **modo Mãos livres** e o
+> **modo Acessível** com navegação por teclado.
+>
+> **Não publique esta pasta na Vercel.** Ela é uma cópia local; os arquivos
+> `vercel.json`, `.vercelignore` e a pasta `api/` foram removidos. O servidor
+> escuta apenas em `127.0.0.1`.
+
+## Mesa XY — como usar
+
+1. Dê duplo clique em **`start.bat`** (ou no atalho
+   `..\ABRIR_XADREZ_XY.bat`). Use Chrome ou Edge.
+2. Abra a aba **Mesa XY** no painel inferior.
+3. Escolha **Arduino** ou **Simulação** e clique em conectar.
+4. Com Arduino: escolha a porta, posicione a mesa em **0,0** e confirme a
+   origem (ZERO). Depois ajuste as peças na posição do jogo e clique em
+   **Confirmar mesa sincronizada**. Também é possível falar
+   **“confirmar origem”** e **“mesa sincronizada”**.
+5. Jogue normalmente (clique, texto ou voz). Só lances legais são aceitos. Cada
+   lance é executado fisicamente e só depois aplicado no jogo.
+6. O traçado aparece sobre o tabuleiro virtual, com as etapas
+   **DESVIAR / JOGADA / DEVOLVER** no painel. Cada sub-movimento liga o ímã
+   apenas em cima da peça e retorna a 0,0 ao soltar.
+7. **Capturas sem remoção manual:** a máquina leva a peça capturada para um
+   **ponto de descarte** na faixa externa ao tabuleiro e o app considera que
+   ela já foi retirada. Não há painel de vagas/peças: o descarte é tratado como
+   lixo. O lado pode ser a esquerda (padrão, faixa 0–50 mm) ou a direita
+   (faixa 300–400 mm), em **Ajustes da mesa**. Coordenadas calculadas:
+   **X=20 mm** à esquerda ou **X=380 mm** à direita; **Y=42,0 a 323,3 mm**,
+   em pontos de 31,25 mm.
+
+### Mãos livres e acessibilidade
+
+- Ative **Mãos livres** no painel Voz. Depois da primeira permissão do
+  microfone, o app fica ouvindo em modo contínuo: não é preciso apertar para
+  falar em cada lance. **O navegador exige um primeiro clique/permissão**; isso
+  não pode ser contornado por segurança.
+- O modo **Acessível** (botão `A+` no topo) aumenta botões e textos, melhora o
+  contraste e mostra a dica de teclado. No tabuleiro, use as **setas** para
+  navegar, **Enter/Espaço** para selecionar/mover e **V** para falar.
+- Perguntas de confirmação podem ser respondidas por voz: **“sim”**,
+  **“confirmar”**, **“não”** ou **“cancelar”**. Na promoção, depois de trocar a
+  peça física, diga **“peça trocada”**.
+- Comandos físicos por voz: **“parar”**, **“ímã desligado”**,
+  **“confirmar origem”** e **“mesa sincronizada”**.
+- Falas que não são comandos de xadrez são **ignoradas em silêncio**: não
+  aparecem avisos falados nem som de erro. Isso evita que a escuta contínua
+  interrompa a partida por causa de conversas do ambiente.
+
+Coordenadas físicas: área de trabalho de **0 a 400 mm**, tabuleiro de
+**50 a 300 mm**, casas de **31,25 mm**, origem da máquina em **0,0**, firmware
+do `Controle_XY.ino` a **80 passos/mm**. A configuração do canto físico do a1
+fica em **Ajustes da mesa**.
+
+Limitações físicas: a captura é automática e a peça descartada é considerada
+retirada; a promoção ainda exige trocar a peça física quando o app pedir; o
+roque tenta um plano automático e, se não couber, pede assistência manual.
+Desfazer/nova partida não movem as peças físicas: o app avisa e pede para
+sincronizar a mesa antes de voltar a executar lances. O tempo de cada lance
+inclui o Whisper local (cerca de 1–2 s) e o deslocamento físico (alguns
+segundos por sub-movimento).
+
+**Regravar o `Controle_XY.ino` é recomendado** para que STOP e ZERO também
+desliguem o ímã no firmware; a página envia `IMA,0` de qualquer forma.
+
+---
 
 Xadrez completo no navegador, controlado por **voz em português e inglês**, com
 **Whisper local quantizado** (whisper.cpp), IA de xadrez integrada e modo para
@@ -6,16 +76,8 @@ dois jogadores.
 
 ![Xadrez Voz](docs/screenshot.png)
 
-> **Demo com Whisper no servidor:** https://xadrez-voz-three.vercel.app/
->
-> **Demo estática:** https://bryanrafaelbueno.github.io/xadrez-voz/
->
-> No GitHub Pages, xadrez e IA rodam no navegador; a voz usa o reconhecimento
-> do navegador. Na Vercel, a voz é transcrita pelo Whisper base na função
-> serverless. Whisper residente e narração neural exigem rodar o `start.bat` no
-> computador.
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/bryanrafaelbueno/xadrez-voz)
+> **Versão local:** rode com `start.bat` ou `ABRIR_XADREZ_XY.bat`.
+> O projeto não depende da Vercel e **não deve ser publicado lá**.
 
 ## Versão online (GitHub Pages)
 
@@ -35,38 +97,11 @@ O repositório não versiona as pastas `bin/`, `models/` e `vendor/` por causa d
 tamanho dos binários (Whisper, eSpeak e runtime da voz). A demo online não
 precisa delas; a cópia local do projeto já as contém.
 
-## Deploy na Vercel (Whisper no servidor)
+## Demonstrações de path tracing
 
-**https://xadrez-voz-three.vercel.app/**
-
-A versão Vercel roda **Whisper base no servidor** (função Python serverless)
-e mantém o tabuleiro, a IA e o restante do app no navegador. A narração pt-BR
-usa a voz do navegador nesta versão.
-
-- **Projeto:** `xadrez-voz`, conectado ao repositório na branch `main`.
-- **Botão:** use o botão *Deploy with Vercel* no topo deste README.
-- **Modelo:** `ggml-base-q5_1` (57 MB) é baixado durante o build e embutido na
-  função; não fica no Git.
-- **API:** `/api/health`, `/api/transcribe` e `/api/tts` (esta retorna 503,
-  porque a narração é do navegador).
-- **Cold start:** a primeira fala após uma nova instância carrega o modelo e
-  pode demorar alguns segundos; a Vercel permite até 300s por requisição.
-- **Pywhispercpp / Python 3.12:** as dependências e a versão do runtime estão
-  em `requirements.txt` e `vercel.json`.
-- **CLI opcional:**
-
-```powershell
-npx vercel login
-npx vercel --prod
-```
-
-> Observação: no Windows, o build local do CLI pode falhar ao criar symlinks
-> do builder. Nesse caso, use o botão/importação do GitHub, que faz o build
-> diretamente na Vercel.
-
-A versão local (`start.bat`) continua sendo a única com **Whisper local
-residente + narração neural TinyVoca**. O GitHub Pages continua sendo a demo
-estática sem backend.
+A pasta `demo-videos/` contém três vídeos (cavalo com desobstrução, roque e peão)
+e uma galeria para assistir: abra `demo-videos/index.html` ou os MP4s em
+`demo-videos/videos/`.
 
 ## Destaques
 
@@ -239,10 +274,10 @@ js/speech.js          Narração local pt-BR + Web Speech API
 js/sound.js           Efeitos sonoros sintetizados
 js/main.js            Controle do app
 js/i18n.js            Textos PT/EN e descrição de lances
+js/xy-table.js        Mesa XY, A*, descarte, Web Serial e simulação
 server.py             HTTP local, Whisper e voz pt-BR
-api/                  Funções serverless da Vercel (Whisper base)
-vercel.json           Build/output das funções e do site na Vercel
-requirements.txt      Dependências Python da função Vercel
+firmware/Controle_XY.ino      Firmware do Arduino (XY + ímã)
+firmware/controle_xy.html    Página de teste manual da mesa
 bin/whisper/          whisper.cpp (whisper-server, whisper-cli e DLLs)
 bin/espeak-ng/        eSpeak NG (fonemas da narração)
 models/               Whisper GGML + voz tiny-voca
@@ -309,8 +344,6 @@ Python to PATH”, ou use `py -3 server.py`.
 ## Privacidade
 
 - Com o Whisper local ativo, o áudio é processado na sua máquina e não sai dela.
-- No deploy da Vercel, o áudio é enviado por HTTPS para a função serverless da
-  Vercel e processado lá; o WAV temporário é apagado após a transcrição.
 - A narração pt-BR também é sintetizada localmente na versão desktop; apenas o
   texto do lance é enviado ao servidor local em `127.0.0.1`, nunca à internet.
 - O áudio temporário é apagado do disco logo após a transcrição.
@@ -323,7 +356,6 @@ Python to PATH”, ou use `py -3 server.py`.
 - Peças de xadrez: **Colin M. L. Burnett**, licença CC BY-SA 3.0
   (via repositório do Lichess).
 - [whisper.cpp](https://github.com/ggml-org/whisper.cpp): MIT.
-- [pywhispercpp](https://github.com/absadiki/pywhispercpp): MIT (bindings usados na função Vercel).
 - Modelos [OpenAI Whisper](https://github.com/openai/whisper): MIT.
 - Voz [tiny-voca pt-BR](https://huggingface.co/Haple/tiny-voca-ptbr-kokoro):
   Apache-2.0.

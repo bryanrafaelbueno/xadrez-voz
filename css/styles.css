@@ -2247,3 +2247,290 @@ select:disabled {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/* Modo acessível                                                              */
+/* -------------------------------------------------------------------------- */
+
+.access-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid rgba(76, 227, 170, 0.24);
+  border-radius: 11px;
+  background: rgba(76, 227, 170, 0.06);
+  color: #bdf7df;
+  font-size: 10.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.18s, border-color 0.18s, transform 0.18s;
+}
+
+.access-pill:hover {
+  background: rgba(76, 227, 170, 0.12);
+  border-color: rgba(76, 227, 170, 0.4);
+}
+
+.access-pill.on {
+  background: linear-gradient(180deg, rgba(76, 227, 170, 0.25), rgba(23, 157, 112, 0.18));
+  border-color: rgba(76, 227, 170, 0.55);
+  color: #eafff7;
+  box-shadow: 0 0 20px rgba(76, 227, 170, 0.16);
+}
+
+.access-glyph {
+  display: grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.access-label {
+  white-space: nowrap;
+}
+
+.access-hint {
+  display: none;
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border: 1px solid rgba(76, 227, 170, 0.2);
+  border-radius: 9px;
+  background: rgba(76, 227, 170, 0.055);
+  color: #b6c4d1;
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+.btn:focus-visible,
+.icon-btn:focus-visible,
+.tab:focus-visible,
+.mini-btn:focus-visible,
+.access-pill:focus-visible,
+.chip:focus-visible,
+.command-example:focus-visible,
+.mic-btn:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+body.accessible {
+  --board-light: #f3e6c8;
+  --board-dark: #2e6a52;
+  --line: rgba(255, 255, 255, 0.16);
+  --line-strong: rgba(255, 255, 255, 0.24);
+  --muted: #b7c5d3;
+  --muted-2: #94a5b6;
+}
+
+body.accessible .btn {
+  min-height: 48px;
+  padding: 11px 16px;
+  border-radius: 14px;
+  font-size: 13px;
+}
+
+body.accessible .btn.compact {
+  min-height: 42px;
+  padding: 9px 13px;
+  font-size: 12px;
+}
+
+body.accessible .btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+body.accessible .icon-btn {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+}
+
+body.accessible .icon-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+body.accessible .mini-btn {
+  min-height: 40px;
+  padding: 9px 13px;
+  font-size: 12px;
+}
+
+body.accessible .tab {
+  padding: 10px 0 13px;
+  font-size: 13px;
+}
+
+body.accessible .tab-panel {
+  padding: 16px 18px 18px;
+}
+
+body.accessible .mic-btn {
+  width: 112px;
+  height: 112px;
+}
+
+body.accessible .actions .btn {
+  flex: 1 1 150px;
+}
+
+body.accessible .access-hint {
+  display: block;
+}
+
+body.accessible .square:focus-visible {
+  outline: 4px solid #ffffff;
+  outline-offset: -4px;
+}
+
+body.accessible .status-main {
+  font-size: 15px;
+}
+
+body.accessible .player-name {
+  font-size: 15px;
+}
+
+body.accessible .engine-pill,
+body.accessible .access-pill {
+  min-height: 42px;
+  font-size: 11.5px;
+}
+
+body.accessible .access-glyph {
+  min-width: 25px;
+  height: 25px;
+  font-size: 12px;
+}
+
+body.accessible .xy-log {
+  font-size: 10px;
+}
+
+body.accessible .xy-plan-copy b {
+  font-size: 11px;
+}
+
+.hands-free-row {
+  margin: 0 0 11px;
+  padding: 9px 10px;
+  border: 1px solid rgba(76, 227, 170, 0.18);
+  border-radius: 10px;
+  background: rgba(76, 227, 170, 0.04);
+}
+
+.hands-free-row b {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hands-free-row b::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px rgba(76, 227, 170, 0.55);
+}
+
+.hands-free-row:has(input:not(:checked)) b::before {
+  background: var(--muted-2);
+  box-shadow: none;
+}
+
+body.accessible .hands-free-row {
+  padding: 12px;
+}
+
+@media (max-width: 520px) {
+  .access-label {
+    display: none;
+  }
+
+  .access-pill {
+    min-width: 38px;
+    justify-content: center;
+    padding: 6px 8px;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Contenção de textos dinâmicos                                               */
+/* -------------------------------------------------------------------------- */
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+.feedback {
+  max-height: 140px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+
+.transcript-card p {
+  max-height: 96px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+
+.toast {
+  max-width: min(360px, calc(100vw - 36px));
+  overflow-wrap: anywhere;
+}
+
+.status-main {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.status-sub {
+  min-width: 0;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.move-row .san {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-lines {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.player-name,
+.player-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xy-log {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 460px) {
+  .badge {
+    max-width: 130px;
+  }
+}

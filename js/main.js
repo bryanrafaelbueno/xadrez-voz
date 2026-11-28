@@ -10,6 +10,7 @@ import {
 } from './chess.js';
 import { configForElo, levelForElo, eloForLevel, ELO_MIN, ELO_MAX, DEFAULT_ELO } from './ai.js';
 import { parseCommand, parsePromotionPiece } from './parser.js';
+import { createXYTable } from './xy-table.js';
 import { VoiceInput } from './voice.js';
 import { Narrator } from './speech.js';
 import { Sounds } from './sound.js';
@@ -94,6 +95,8 @@ const dom = {
   resignBtn: $('resignBtn'),
   soundBtn: $('soundBtn'),
   helpBtn: $('helpBtn'),
+  accessBtn: $('accessBtn'),
+  accessHint: $('accessHint'),
 
   langSwitch: $('langSwitch'),
   langControl: $('langControl'),
@@ -103,6 +106,7 @@ const dom = {
   eloValue: $('eloValue'),
   rangeMarks: $('rangeMarks'),
   continuousToggle: $('continuousToggle'),
+  handsFreeToggle: $('handsFreeToggle'),
   ttsToggle: $('ttsToggle'),
   ttsVoiceSelect: $('ttsVoiceSelect'),
   ttsTestBtn: $('ttsTestBtn'),
@@ -147,6 +151,7 @@ const state = {
   ttsVoice: 'F',
   sound: true,
   continuous: false,
+  handsFree: false,
   model: 'base',
   server: { state: 'checking', available: false, models: [], engine: null, lastError: '', tts: { state: 'loading', available: false } },
   status: null,
@@ -156,6 +161,11 @@ const state = {
   endTimer: null,
   resigned: false,
   thinking: false,
+  xyBusy: false,
+  xyBusyLabel: '',
+  accessible: false,
+  keyboardSquare: 'e2',
+  keyboardFocus: false,
   aiPurpose: null,
   aiToken: 0,
   aiTimer: null,
@@ -170,6 +180,7 @@ const state = {
   narrating: false,
   lastSpeech: Promise.resolve(),
   lastSource: null,
+  lastNarrationAt: 0,
   healthBusy: false,
   healthTimer: null,
   lastHealthAttempt: 0,
@@ -178,6 +189,7 @@ const state = {
 let sounds = null;
 let narrator = null;
 let voice = null;
+let xyTable = null;
 let narrToken = 0;
 let confirmResolve = null;
 
@@ -201,6 +213,9 @@ function loadSettings() {
   if (saved.ttsVoice === 'F' || saved.ttsVoice === 'M') state.ttsVoice = saved.ttsVoice;
   if (typeof saved.sound === 'boolean') state.sound = saved.sound;
   if (typeof saved.continuous === 'boolean') state.continuous = saved.continuous;
+  if (typeof saved.handsFree === 'boolean') state.handsFree = saved.handsFree;
+  if (typeof saved.accessible === 'boolean') state.accessible = saved.accessible;
+  if (state.handsFree) state.continuous = true;
   if (['small', 'base', 'medium', 'tiny'].includes(saved.model)) state.model = saved.model;
   state.orientation = state.mode === 'ai' ? state.humanColor : 'w';
 }
@@ -216,6 +231,8 @@ function saveSettings() {
       ttsVoice: state.ttsVoice,
       sound: state.sound,
       continuous: state.continuous,
+      handsFree: state.handsFree,
+      accessible: state.accessible,
       model: state.model,
     }));
   } catch {
@@ -223,8 +240,75 @@ function saveSettings() {
   }
 }
 
+function applyAccessibility() {
+  document.body.classList.toggle('accessible', state.accessible);
+  if (dom.accessBtn) {
+    dom.accessBtn.classList.toggle('on', state.accessible);
+    dom.accessBtn.setAttribute('aria-pressed', String(state.accessible));
+  }
+}
+
+function toggleAccessibility() {
+  state.accessible = !state.accessible;
+  saveSettings();
+  applyAccessibility();
+  showToast(
+    t(state.lang, state.accessible ? 'accessibleOn' : 'accessibleOff'),
+    state.accessible ? 'success' : 'info'
+  );
+}
+
+function syncHandsFreeUI() {
+  if (dom.handsFreeToggle) dom.handsFreeToggle.checked = state.handsFree;
+  if (dom.continuousToggle) dom.continuousToggle.checked = state.continuous;
+}
+
+function setHandsFree(enabled) {
+  state.handsFree = Boolean(enabled);
+  if (state.handsFree) state.continuous = true;
+  saveSettings();
+  syncHandsFreeUI();
+
+  if (state.handsFree) {
+    showToast(t(state.lang, 'handsFreeOn'), 'success');
+    if (!state.sessionActive) startVoiceSession();
+  } else {
+    if (state.sessionActive) stopVoiceSession({ keepHandsFree: true });
+    showToast(t(state.lang, 'handsFreeOff'), 'info');
+  }
+}
+
+async function autoStartHandsFree() {
+  if (!state.handsFree || state.sessionActive) return;
+
+  let permission = 'prompt';
+  try {
+    const status = await navigator.permissions.query({ name: 'microphone' });
+    permission = status.state;
+  } catch {
+    /* some browsers do not expose microphone permission */
+  }
+
+  if (permission !== 'granted') {
+    showToast(t(state.lang, 'handsFreeNeedsClick'), 'info');
+    return;
+  }
+
+  for (let attempt = 0; attempt < 24; attempt += 1) {
+    if (!state.handsFree || state.sessionActive) return;
+    if (state.server.available || STATIC_MODE) break;
+    await sleep(500);
+  }
+
+  if (!state.handsFree || state.sessionActive) return;
+  if (state.server.available || (voice && voice.browserSupported())) {
+    startVoiceSession();
+  }
+}
+
 function init() {
   loadSettings();
+  applyAccessibility();
   buildMeter();
   sounds = new Sounds(state.sound);
   narrator = new Narrator({ lang: state.lang, enabled: state.tts, ttsVoice: state.ttsVoice });
@@ -236,6 +320,26 @@ function init() {
     serverAvailable: false,
   });
   bindEvents();
+
+  xyTable = createXYTable({
+    getBoardOrientation: () => state.orientation,
+    confirm: ({ title, text, okLabel }) => askConfirm(title, text, okLabel),
+    feedback: showFeedback,
+    toast: showToast,
+    onBusyChange: (busy, label) => {
+      state.xyBusy = Boolean(busy);
+      state.xyBusyLabel = label || '';
+      updateBoardBusy();
+      updateControls();
+    },
+    onActivateTab: () => showTab('xy'),
+    listenForConfirmation: () => listenForPromotionConfirmation(),
+    cancelConfirmation: () => {
+      if (voice) voice.stop({ release: false });
+    },
+  });
+  xyTable.mount();
+
   applyLanguage();
   syncSettingsUI();
   renderServer();
@@ -256,6 +360,31 @@ function init() {
   } else {
     checkHealth();
   }
+
+  if (state.handsFree) {
+    setTimeout(() => autoStartHandsFree(), 700);
+  }
+
+  // Gancho local de diagnóstico (não aparece na interface).
+  window.__xvoz = {
+    state,
+    xyTable,
+    voice,
+    startVoiceSession,
+    stopVoiceSession,
+    renderAll,
+    newGame,
+    undoMove,
+    playMoveByInt,
+    currentStatus,
+    legalMovesFromTo,
+    moveFrom,
+    moveTo,
+    moveFlags,
+    movePromotion,
+    sqToName,
+    nameToSq,
+  };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -370,6 +499,12 @@ function visualCoords(square) {
   return { col: 7 - file, row: rank };
 }
 
+function squareFromVisual(col, row) {
+  const rank = state.orientation === 'w' ? 7 - row : row;
+  const file = state.orientation === 'w' ? col : 7 - col;
+  return sqToName(rank * 16 + file);
+}
+
 function renderBoard(animate = false) {
   const status = state.status || currentStatus();
   const legalTargets = new Map();
@@ -393,12 +528,35 @@ function renderBoard(animate = false) {
       const square = sqToName(rank * 16 + file);
       const light = (file + rank) % 2 === 1;
 
+      const piece = state.game.board[nameToSq(square)];
+      const pieceName = piece
+        ? PIECE_NAMES[state.lang === 'en' ? 'en' : 'pt'][
+            PIECE_LETTERS[Math.abs(piece)]
+          ]
+        : null;
+      const isLegal = legalTargets.has(square);
+
       const button = document.createElement('button');
       button.type = 'button';
       button.className = `square ${light ? 'light' : 'dark'}`;
       button.dataset.sq = square;
       button.setAttribute('role', 'gridcell');
-      button.setAttribute('aria-label', square);
+      button.setAttribute(
+        'aria-label',
+        `${square}${pieceName ? `, ${pieceName}` : ''}${
+          isLegal
+            ? legalTargets.get(square)
+              ? ', captura legal'
+              : ', movimento legal'
+            : ''
+        }`
+      );
+      button.setAttribute(
+        'aria-selected',
+        String(state.selected === square)
+      );
+      button.tabIndex =
+        square === (state.keyboardSquare || state.selected || 'e2') ? 0 : -1;
 
       if (state.lastMove && (state.lastMove.from === square || state.lastMove.to === square)) {
         button.classList.add('last');
@@ -428,6 +586,12 @@ function renderBoard(animate = false) {
     }
   }
   dom.squares.replaceChildren(squareFragment);
+
+  if (state.keyboardFocus) {
+    const focusSq = state.keyboardSquare || state.selected || 'e2';
+    const target = dom.squares.querySelector(`.square[data-sq="${focusSq}"]`);
+    target?.focus({ preventScroll: true });
+  }
 
   const pieceFragment = document.createDocumentFragment();
   const pieceEls = new Map();
@@ -629,9 +793,20 @@ function renderMoveList() {
 }
 
 function updateBoardBusy() {
-  dom.boardBusy.classList.toggle('on', state.thinking);
+  const busy = state.thinking || state.xyBusy;
+  dom.boardBusy.classList.toggle('on', busy);
   const label = dom.boardBusy.querySelector('span:last-child');
-  if (label) label.textContent = t(state.lang, 'thinking');
+  if (!label) return;
+
+  if (state.xyBusy) {
+    label.textContent =
+      state.xyBusyLabel ||
+      (state.lang === 'en'
+        ? 'Executing on the physical board…'
+        : 'Executando no tabuleiro físico…');
+  } else {
+    label.textContent = t(state.lang, 'thinking');
+  }
 }
 
 function renderAll({ animate = false } = {}) {
@@ -654,10 +829,18 @@ function renderAll({ animate = false } = {}) {
 
 function updateControls() {
   const status = state.status || currentStatus();
-  dom.undoBtn.disabled = state.moves.length === 0;
-  dom.hintBtn.disabled = !!(status.over || state.thinking || !isHumanTurn() || state.pendingPromotion);
-  dom.resignBtn.disabled = !!status.over;
-  dom.micBtn.disabled = !!status.over;
+  dom.undoBtn.disabled = state.moves.length === 0 || state.xyBusy;
+  dom.hintBtn.disabled = !!(
+    status.over ||
+    state.thinking ||
+    state.xyBusy ||
+    !isHumanTurn() ||
+    state.pendingPromotion
+  );
+  dom.resignBtn.disabled = !!status.over || state.xyBusy;
+  dom.micBtn.disabled = !!status.over || state.xyBusy;
+  dom.newBtn.disabled = state.xyBusy;
+  dom.flipBtn.disabled = state.xyBusy || state.thinking;
   dom.micBtn.setAttribute('aria-pressed', String(state.sessionActive));
 }
 
@@ -684,12 +867,13 @@ function narrate(text) {
   state.narrating = true;
   const promise = narrator.speak(text).finally(() => {
     if (token === narrToken) state.narrating = false;
+    state.lastNarrationAt = performance.now();
   });
   state.lastSpeech = promise;
   return promise;
 }
 
-function playMoveByInt(move, { source = 'click' } = {}) {
+function commitMoveByInt(move, { source = 'click' } = {}) {
   const game = state.game;
   const from = moveFrom(move);
   const to = moveTo(move);
@@ -718,6 +902,7 @@ function playMoveByInt(move, { source = 'click' } = {}) {
   state.moves.push(entry);
   state.lastMove = entry;
   state.selected = null;
+  state.keyboardSquare = sqToName(to);
   state.hintMove = null;
   state.pendingPromotion = null;
   hidePromotionModal();
@@ -746,6 +931,97 @@ function playMoveByInt(move, { source = 'click' } = {}) {
   return { entry, status };
 }
 
+async function playMoveByInt(move, { source = 'click' } = {}) {
+  if (state.xyBusy) {
+    showFeedback(
+      state.lang === 'en'
+        ? 'A physical move is in progress.'
+        : 'Um movimento físico está em andamento.',
+      'info'
+    );
+    return { entry: null, status: currentStatus(), blocked: true };
+  }
+
+  if (!xyTable) {
+    return commitMoveByInt(move, { source });
+  }
+
+  const from = moveFrom(move);
+  const to = moveTo(move);
+  const flags = moveFlags(move);
+  const promo = movePromotion(move);
+  const ep = !!(flags & FLAG_EP);
+  const capturedSquare = ep
+    ? sqToName(to - 16 * state.game.turn)
+    : sqToName(to);
+
+  const gate = await xyTable.executeChessMove(
+    {
+      fen: state.game.fen(),
+      from: sqToName(from),
+      to: sqToName(to),
+      capture: !!(flags & FLAG_CAPTURE),
+      ep,
+      capturedSquare,
+      kcastle: !!(flags & FLAG_KCASTLE),
+      qcastle: !!(flags & FLAG_QCASTLE),
+      promotion: promo || 0,
+      color: colorLetter(state.game.turn),
+      san: state.game.moveToSan(move),
+      source,
+    },
+    { source }
+  );
+
+  if (!gate.ok) {
+    if (gate.canCommitVisually) {
+      const applyVisual = await askConfirm(
+        state.lang === 'en'
+          ? 'Physical move not completed'
+          : 'Movimento físico não concluído',
+        `${gate.message || ''}\n\n${
+          state.lang === 'en'
+            ? 'Apply the move only on the virtual board? Adjust the physical board afterwards and confirm synchronization.'
+            : 'Deseja aplicar o lance somente no tabuleiro virtual? Depois ajuste a mesa física e confirme a sincronização.'
+        }`,
+        state.lang === 'en' ? 'Apply on screen' : 'Aplicar só na tela'
+      );
+
+      if (applyVisual) {
+        const result = commitMoveByInt(move, { source });
+        xyTable.noteGameCommitted(state.game.fen(), { physical: false });
+        showFeedback(
+          state.lang === 'en'
+            ? 'Move applied on screen only. Synchronize the physical table.'
+            : 'Lance aplicado só na tela. Sincronize a mesa física.',
+          'warning'
+        );
+        return result;
+      }
+    }
+
+    showFeedback(
+      gate.message ||
+        (state.lang === 'en'
+          ? 'Physical move was not completed.'
+          : 'O movimento físico não foi concluído.'),
+      'error'
+    );
+    return { entry: null, status: currentStatus(), blocked: true };
+  }
+
+  const result = commitMoveByInt(move, { source });
+  xyTable.noteGameCommitted(state.game.fen(), {
+    physical: Boolean(gate.executed),
+  });
+
+  if (gate.warning) {
+    showFeedback(gate.warning, 'warning');
+  }
+
+  return result;
+}
+
 function afterHumanMove() {
   if (state.mode !== 'ai' || state.gameOver) return;
   if (state.game.turn === humanColorInt()) return;
@@ -753,7 +1029,10 @@ function afterHumanMove() {
 }
 
 async function applyMoveAndReport(move, { source = 'voice' } = {}) {
-  const { entry, status } = playMoveByInt(move, { source });
+  const result = await playMoveByInt(move, { source });
+  if (!result || result.blocked) return;
+
+  const { entry, status } = result;
   const description = describeMove(entry, state.lang);
   showFeedback(`${t(state.lang, 'moveApplied')}: ${description}`, 'success');
   if (status.over) {
@@ -862,7 +1141,10 @@ async function applyPromotion(letter) {
   if (!move) return;
   state.pendingPromotion = null;
   hidePromotionModal();
-  const { entry, status } = playMoveByInt(move, { source: 'promotion' });
+  const result = await playMoveByInt(move, { source: 'promotion' });
+  if (!result || result.blocked) return;
+
+  const { entry, status } = result;
   const description = describeMove(entry, state.lang);
   showFeedback(`${t(state.lang, 'moveApplied')}: ${description}`, 'success');
   if (status.over) {
@@ -877,8 +1159,9 @@ async function applyPromotion(letter) {
 /* Click interaction                                                           */
 /* -------------------------------------------------------------------------- */
 
-function onSquareClick(square) {
+async function onSquareClick(square) {
   if (state.pendingPromotion) return;
+  if (state.xyBusy) return;
   if (!humanTurnGuard()) return;
 
   const status = state.status || currentStatus();
@@ -905,7 +1188,8 @@ function onSquareClick(square) {
         showFeedback(t(state.lang, 'promotionNeeded'), 'info');
         return;
       }
-      const result = playMoveByInt(moves[0], { source: 'click' });
+      const result = await playMoveByInt(moves[0], { source: 'click' });
+      if (!result || result.blocked) return;
       if (!result.status.over) {
         if (result.status.check) narrate(t(state.lang, 'check'));
         afterHumanMove();
@@ -933,6 +1217,15 @@ function onSquareClick(square) {
 }
 
 function humanTurnGuard() {
+  if (state.xyBusy) {
+    showFeedback(
+      state.lang === 'en'
+        ? 'A physical move is in progress.'
+        : 'Um movimento físico está em andamento.',
+      'info'
+    );
+    return false;
+  }
   if (state.mode === '2p') return true;
   if (state.game.turn === humanColorInt()) return true;
   const message = state.thinking ? t(state.lang, 'aiThinking') : t(state.lang, 'notYourTurn');
@@ -945,6 +1238,16 @@ function humanTurnGuard() {
 /* -------------------------------------------------------------------------- */
 
 function newGame({ silent = false } = {}) {
+  if (state.xyBusy) {
+    showFeedback(
+      state.lang === 'en'
+        ? 'A physical move is in progress.'
+        : 'Um movimento físico está em andamento.',
+      'info'
+    );
+    return;
+  }
+
   cancelAI();
   if (state.sessionActive && voice) voice.stop({ release: false });
   if (state.endTimer) {
@@ -959,6 +1262,8 @@ function newGame({ silent = false } = {}) {
   state.lastMove = null;
   state.hintMove = null;
   state.pendingPromotion = null;
+  state.keyboardSquare = 'e2';
+  state.keyboardFocus = false;
   state.gameOver = false;
   state.endStatus = null;
   state.ended = false;
@@ -971,6 +1276,9 @@ function newGame({ silent = false } = {}) {
   confirmResolve = null;
   state.orientation = state.mode === 'ai' ? state.humanColor : 'w';
   renderAll();
+  xyTable?.noteGameChanged(state.game.fen(), {
+    reason: silent ? 'init' : 'new',
+  });
   if (!silent) {
     showFeedback(t(state.lang, 'newGameStarted'), 'info');
     sounds.play('notify');
@@ -978,9 +1286,21 @@ function newGame({ silent = false } = {}) {
   if (state.mode === 'ai' && state.game.turn !== humanColorInt()) {
     scheduleAI(450);
   }
+  if (state.handsFree && !silent && !state.sessionActive) {
+    setTimeout(() => autoStartHandsFree(), 700);
+  }
 }
 
 function undoMove() {
+  if (state.xyBusy) {
+    showFeedback(
+      state.lang === 'en'
+        ? 'A physical move is in progress.'
+        : 'Um movimento físico está em andamento.',
+      'info'
+    );
+    return false;
+  }
   if (!state.moves.length) {
     showFeedback(t(state.lang, 'noUndo'), 'error');
     return false;
@@ -1018,6 +1338,7 @@ function undoMove() {
   state.evalCp = 0;
   state.status = null;
   renderAll();
+  xyTable?.noteGameChanged(state.game.fen(), { reason: 'undo' });
   showFeedback(t(state.lang, 'undoDone'), 'info');
   sounds.play('notify');
   if (state.mode === 'ai' && state.game.turn !== humanColorInt()) scheduleAI(400);
@@ -1252,7 +1573,19 @@ async function onWorkerMessage(event) {
     return;
   }
   updateEvalFromResult(data, state.game.turn);
-  const { entry, status } = playMoveByInt(move, { source: 'ai' });
+  const result = await playMoveByInt(move, { source: 'ai' });
+  if (!result || result.blocked) {
+    renderAll();
+    showFeedback(
+      state.lang === 'en'
+        ? 'The AI move was not applied. Synchronize the physical table and try again.'
+        : 'O lance da IA não foi aplicado. Sincronize a mesa física e tente novamente.',
+      'error'
+    );
+    return;
+  }
+
+  const { entry, status } = result;
   if (status.over) {
     await state.lastSpeech;
     return;
@@ -1376,11 +1709,67 @@ function parseErrorMessage(parsed) {
   }
   if (reason === 'squares_missing') return t(state.lang, 'squaresMissing');
   if (reason === 'promotion_piece_unknown') return t(state.lang, 'promotionPieceUnknown');
-  return `${t(state.lang, 'notUnderstood')} ${t(state.lang, 'tryExample')}`;
+  // Comando não reconhecido: não falar nada. Em escuta contínua, o microfone
+  // capta conversas do ambiente e uma resposta falada interromperia o jogo.
+  return '';
 }
 
 async function processCommand(text) {
   if (!text) return;
+
+  const norm = String(text)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+
+  if (xyTable) {
+    const xyCommand =
+      /^(parar|pare|stop|emergencia|mesa sincronizada|confirmar mesa|sincronizar mesa|table synced|confirmar origem|definir origem|zerar|zero|confirm origin|set origin|ima desligado|desligar ima|magnet off)\b/.test(
+        norm
+      );
+
+    if (xyCommand && !xyTable.isConnected()) {
+      showFeedback(t(state.lang, 'tableNotConnected'), 'warning');
+      return;
+    }
+
+    if (/^(parar|pare|stop|emergencia)\b/.test(norm)) {
+      await xyTable.stopAll();
+      const message = t(state.lang, 'physicalStopped');
+      showFeedback(message, 'warning');
+      return;
+    }
+    if (
+      /^(mesa sincronizada|confirmar mesa|sincronizar mesa|table synced)\b/.test(
+        norm
+      )
+    ) {
+      xyTable.confirmBoardSynced();
+      const message = t(state.lang, 'tableSynced');
+      showFeedback(message, 'success');
+      return;
+    }
+    if (
+      /^(confirmar origem|definir origem|zerar|zero|confirm origin|set origin)\b/.test(
+        norm
+      )
+    ) {
+      const message = t(state.lang, 'confirmZeroVoice');
+      showFeedback(message, 'info');
+      // Não aguarda o modal: a sessão de voz continua ouvindo para o “sim”.
+      xyTable.confirmZero();
+      return;
+    }
+    if (
+      /^(ima desligado|desligar ima|magnet off)\b/.test(norm)
+    ) {
+      await xyTable.magnetOff();
+      const message = t(state.lang, 'magnetOffDone');
+      showFeedback(message, 'success');
+      return;
+    }
+  }
 
   if (state.gameOver) {
     const isControl = /(nova partida|novo jogo|new game|reiniciar|recomecar|restart|reset|desfazer|undo|situacao|status|repete|repetir|repeat|girar|virar|flip)/i.test(text);
@@ -1466,6 +1855,7 @@ async function processCommand(text) {
     case 'invalid':
     default: {
       const message = parseErrorMessage(parsed);
+      if (!message) return;
       showFeedback(message, 'error');
       sounds.play('error');
       await narrate(message);
@@ -1522,9 +1912,11 @@ async function handleAction(parsed) {
       return;
     }
     case 'flip': {
+      if (state.xyBusy) return;
       state.orientation = state.orientation === 'w' ? 'b' : 'w';
       state.selected = null;
       renderAll();
+      xyTable?.redraw();
       showFeedback(t(state.lang, 'flip'), 'info');
       return;
     }
@@ -1568,6 +1960,37 @@ function doResign() {
 
 async function handleUtterance(text, source = 'typed', meta = {}) {
   if (!text) return;
+
+  const normalized = String(text)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+
+  if (confirmResolve) {
+    setTranscript(text, source);
+    if (/^(sim|confirmo|confirmar|pode|claro|isso|ok|okay|yes|confirm)\b/.test(normalized)) {
+      finishConfirm(true);
+      return;
+    }
+    if (/^(nao|cancelar|cancela|errado|no|cancel)\b/.test(normalized)) {
+      finishConfirm(false);
+      return;
+    }
+  }
+
+  if (
+    xyTable &&
+    /^(peca trocada|troquei|troquei a peca|pronto|pode|sim|piece swapped|swapped|done|yes)\b/.test(
+      normalized
+    ) &&
+    xyTable.confirmPromotionSwap?.()
+  ) {
+    setTranscript(text, source);
+    showFeedback('Peça de promoção confirmada.', 'success');
+    return;
+  }
+
   state.voiceProcessing = true;
   updateMicUI();
   setTranscript(text, source);
@@ -1575,9 +1998,9 @@ async function handleUtterance(text, source = 'typed', meta = {}) {
   try {
     await processCommand(text);
   } catch (error) {
+    // Falhas de comando não viram fala: em escuta contínua isso interromperia
+    // o jogo a cada frase captada por engano.
     console.error('Command failed', error);
-    const message = t(state.lang, 'notUnderstood');
-    showFeedback(message, 'error');
   } finally {
     state.voiceProcessing = false;
     updateMicUI();
@@ -1667,7 +2090,17 @@ function updateMicUI() {
 function canListen() {
   if (!state.sessionActive) return false;
   if (state.gameOver) return false;
-  if (state.thinking || state.narrating || state.voiceProcessing) return false;
+  if (
+    state.thinking ||
+    state.narrating ||
+    state.voiceProcessing ||
+    state.xyBusy
+  ) {
+    return false;
+  }
+  if (state.lastNarrationAt && performance.now() - state.lastNarrationAt < 700) {
+    return false;
+  }
   if (!isHumanTurn()) return false;
   if (document.visibilityState === 'hidden') return false;
   return true;
@@ -1692,15 +2125,51 @@ async function startVoiceSession() {
   runVoiceSession();
 }
 
-function stopVoiceSession() {
+function stopVoiceSession({ keepHandsFree = false } = {}) {
   state.sessionActive = false;
   if (voice) voice.stop({ release: true });
+  if (!keepHandsFree && state.handsFree) {
+    state.handsFree = false;
+    saveSettings();
+    syncHandsFreeUI();
+  }
   updateMicUI();
 }
 
 function toggleVoiceSession() {
   if (state.sessionActive) stopVoiceSession();
   else startVoiceSession();
+}
+
+async function listenForPromotionConfirmation() {
+  if (!voice || !state.sessionActive) return false;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (!state.sessionActive) return false;
+    try {
+      const result = await voice.listenOnce({ continuous: false });
+      if (!result || !result.text) continue;
+      const normalized = String(result.text)
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim();
+      if (
+        /^(peca trocada|troquei|troquei a peca|pronto|pode|sim|piece swapped|swapped|done|yes)\b/.test(
+          normalized
+        )
+      ) {
+        setTranscript(result.text, result.source);
+        return true;
+      }
+    } catch (error) {
+      if (!['no_speech', 'empty', 'aborted'].includes(error && error.code)) {
+        return false;
+      }
+    }
+  }
+
+  return false;
 }
 
 async function listenWithBrowserOnce() {
@@ -1782,6 +2251,11 @@ function handleVoiceError(error) {
   }
   if (hard) {
     state.sessionActive = false;
+    if (state.handsFree) {
+      state.handsFree = false;
+      saveSettings();
+      syncHandsFreeUI();
+    }
     if (voice) voice.release();
   }
   updateMicUI();
@@ -1900,6 +2374,9 @@ async function checkHealth() {
       if (data.state === 'loading' || data.state === 'starting' || tts.state === 'loading') {
         await sleep(1800);
         continue;
+      }
+      if (state.handsFree && !state.sessionActive) {
+        setTimeout(() => autoStartHandsFree(), 300);
       }
       return;
     }
@@ -2102,6 +2579,7 @@ function syncSettingsUI() {
   dom.eloRange.setAttribute('aria-valuetext', `${state.elo} · ${eloTier}`);
   dom.rangeMarks.textContent = `${ELO_MIN} ${t(state.lang, 'levelNames')[1]} — ${ELO_MAX} ${t(state.lang, 'levelNames')[5]}`;
   dom.continuousToggle.checked = state.continuous;
+  if (dom.handsFreeToggle) dom.handsFreeToggle.checked = state.handsFree;
   dom.ttsToggle.checked = state.tts;
   dom.ttsVoiceSelect.value = state.ttsVoice;
   if (dom.modelSelect.options.length) dom.modelSelect.value = state.model;
@@ -2316,6 +2794,57 @@ function bindEvents() {
     onSquareClick(square.dataset.sq);
   });
 
+  dom.board.addEventListener('focusin', (event) => {
+    const square = event.target.closest('.square');
+    if (!square) return;
+    state.keyboardSquare = square.dataset.sq;
+    state.keyboardFocus = true;
+  });
+
+  dom.board.addEventListener('focusout', (event) => {
+    if (!dom.board.contains(event.relatedTarget)) {
+      state.keyboardFocus = false;
+    }
+  });
+
+  dom.board.addEventListener('keydown', (event) => {
+    const square = event.target.closest('.square');
+    if (!square) return;
+
+    const current = square.dataset.sq;
+    const { col, row } = visualCoords(current);
+    let nextCol = col;
+    let nextRow = row;
+
+    if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
+      event.preventDefault();
+      square.click();
+      return;
+    }
+
+    if (event.key === 'ArrowLeft') nextCol -= 1;
+    else if (event.key === 'ArrowRight') nextCol += 1;
+    else if (event.key === 'ArrowUp') nextRow -= 1;
+    else if (event.key === 'ArrowDown') nextRow += 1;
+    else return;
+
+    event.preventDefault();
+    nextCol = clamp(nextCol, 0, 7);
+    nextRow = clamp(nextRow, 0, 7);
+
+    const nextSquare = squareFromVisual(nextCol, nextRow);
+    state.keyboardSquare = nextSquare;
+    state.keyboardFocus = true;
+
+    const buttons = dom.board.querySelectorAll('.square');
+    for (const button of buttons) {
+      button.tabIndex = button.dataset.sq === nextSquare ? 0 : -1;
+    }
+    dom.board
+      .querySelector(`.square[data-sq="${nextSquare}"]`)
+      ?.focus({ preventScroll: true });
+  });
+
   dom.newBtn.addEventListener('click', () => {
     stopNarration();
     newGame();
@@ -2324,9 +2853,11 @@ function bindEvents() {
     undoMove();
   });
   dom.flipBtn.addEventListener('click', () => {
+    if (state.xyBusy) return;
     state.orientation = state.orientation === 'w' ? 'b' : 'w';
     state.selected = null;
     renderAll();
+    xyTable?.redraw();
     sounds.play('notify');
   });
   dom.hintBtn.addEventListener('click', () => {
@@ -2337,6 +2868,7 @@ function bindEvents() {
   });
   dom.soundBtn.addEventListener('click', toggleSound);
   dom.helpBtn.addEventListener('click', () => showTab('commands'));
+  dom.accessBtn?.addEventListener('click', toggleAccessibility);
   dom.engineStatus.addEventListener('click', () => {
     if (!STATIC_MODE && !state.healthBusy) checkHealth();
   });
@@ -2370,6 +2902,7 @@ function bindEvents() {
   });
 
   dom.modeControl.addEventListener('click', (event) => {
+    if (state.xyBusy) return;
     const button = event.target.closest('[data-value]');
     if (!button || button.dataset.value === state.mode) return;
     state.mode = button.dataset.value;
@@ -2380,6 +2913,7 @@ function bindEvents() {
   });
 
   dom.sideControl.addEventListener('click', (event) => {
+    if (state.xyBusy) return;
     const button = event.target.closest('[data-value]');
     if (!button || button.dataset.value === state.humanColor) return;
     state.humanColor = button.dataset.value;
@@ -2399,9 +2933,15 @@ function bindEvents() {
 
   dom.continuousToggle.addEventListener('change', () => {
     state.continuous = dom.continuousToggle.checked;
+    if (!state.continuous) state.handsFree = false;
     saveSettings();
-    if (!state.continuous && state.sessionActive) stopVoiceSession();
+    syncHandsFreeUI();
+    if (!state.continuous && state.sessionActive) stopVoiceSession({ keepHandsFree: true });
     updateMicUI();
+  });
+
+  dom.handsFreeToggle?.addEventListener('change', () => {
+    setHandsFree(dom.handsFreeToggle.checked);
   });
 
   dom.ttsToggle.addEventListener('change', () => {
